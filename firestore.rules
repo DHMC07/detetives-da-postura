@@ -2,10 +2,10 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // ► Substitua pelo UID da sua conta de professor
+    // ► MHer73ZzKURFrmHRGW0CpX3McK63
     //   (Consola > Authentication > Users > coluna "User UID")
     function isProf() {
-      return request.auth != null && request.auth.uid in ['COLE_AQUI_O_SEU_UID'];
+      return request.auth != null && request.auth.uid in ['MHer73ZzKURFrmHRGW0CpX3McK63'];
     }
     // Os alunos entram de forma anónima e invisível (não fazem login)
     function isAluno() {

@@ -1,0 +1,152 @@
+<!doctype html>
+<html lang="pt-PT"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Detetives da Postura | Professor</title><meta name="robots" content="noindex">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;800&family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="estilos.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.1.6/purify.min.js"></script>
+<style>
+.login{max-width:420px;margin:60px auto}
+.stats{display:flex;gap:10px;flex-wrap:wrap;margin:14px 0}
+.stats div{background:var(--panel);border:2px solid var(--line);border-radius:14px;padding:10px 16px;font-weight:800}
+.stats b{font-family:'Baloo 2',sans-serif;font-size:26px;display:block;line-height:1}
+.bar{display:flex;gap:10px;flex-wrap:wrap;align-items:end}
+.bar .f{display:flex;flex-direction:column;gap:4px;font-weight:800}
+.bar select{padding:10px 12px;border-radius:10px;border:2px solid var(--line);background:var(--panel);font-size:16px;min-width:140px}
+table.t td .btn{padding:5px 12px}
+.pill.v{background:#DDEBFB;color:#185ABD}.pill.c{background:var(--sun-soft);color:#8A5A00}.pill.d{background:#EEE;color:#555}
+.preview{background:#fff;color:#000;border:1px solid #ddd;border-radius:8px;padding:24px 28px;font-family:Arial,sans-serif;margin-top:10px}
+.preview ol,.preview ul{padding-left:26px;margin:0}
+.mrow{display:flex;gap:8px;flex-wrap:wrap;margin:8px 0}
+.mrow span{background:var(--bg);border-radius:10px;padding:6px 10px;font-weight:700;font-size:14px}
+</style></head><body>
+<div id="app"><main id="main"><div class="wrap"><p class="note">A carregar…</p></div></main></div>
+<div class="modal" id="modal" role="dialog" aria-modal="true"><div class="mbox" id="mBox"></div></div>
+<script type="module">
+import { firebaseConfig } from './firebase-config.js';
+import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js';
+import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js';
+import { getFirestore, collection, query, where, onSnapshot, doc, getDoc, setDoc, updateDoc, deleteDoc, serverTimestamp, writeBatch } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
+
+const MISSOES=[['m1','Certo ou errado?'],['m2','Encontra os 5 erros'],['m3','Liga as regras'],['m4','Quiz'],['m5','Regras no Word']];
+const DEF={turmas:["5.º A","5.º B","5.º C","5.º D","5.º E","5.º F"],ativos:{m1:true,m2:true,m3:true,m4:true},minRegras:5};
+const $=id=>document.getElementById(id);
+const esc=s=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const norm=s=>String(s||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z0-9 ]/g,' ').replace(/\s+/g,' ').trim();
+const slug=t=>norm(t).replace(/ /g,'-')||'turma';
+const fmt=ts=>{try{const d=ts&&ts.toDate?ts.toDate():null;return d?d.toLocaleDateString('pt-PT')+' '+d.toLocaleTimeString('pt-PT',{hour:'2-digit',minute:'2-digit'}):'';}catch(e){return '';}};
+const stars=n=>n==null?'—':'⭐'.repeat(n)+'☆'.repeat(3-n);
+const safe=h=>window.DOMPurify?DOMPurify.sanitize(h||'',{ALLOWED_TAGS:['b','i','u','strong','em','font','span','div','br','ol','ul','li','p'],ALLOWED_ATTR:['style','color','face']}):esc(h);
+function toast(t){const e=document.createElement('div');e.className='toast pop';e.textContent=t;document.body.appendChild(e);setTimeout(()=>e.remove(),2600);}
+const modal=html=>{$('mBox').innerHTML=html;$('modal').classList.add('on');};
+const close=()=>$('modal').classList.remove('on');
+$('modal').addEventListener('click',e=>{if(e.target===$('modal'))close();});
+document.addEventListener('keydown',e=>{if(e.key==='Escape')close();});
+
+if(!firebaseConfig.apiKey||firebaseConfig.apiKey.startsWith('COLE')){$('main').innerHTML='<div class="wrap"><div class="card login"><h2>Falta configurar</h2><p>Preencha o ficheiro <b>firebase-config.js</b> com os dados do seu projeto Firebase.</p></div></div>';throw new Error('config');}
+const app=initializeApp(firebaseConfig),auth=getAuth(app),db=getFirestore(app);
+let CFG=DEF,turma=null,lista=[],entregas=[],unsub=null,tab='entregas';
+
+onAuthStateChanged(auth,async u=>{
+  if(!u||u.isAnonymous){renderLogin();return;}
+  try{const s=await getDoc(doc(db,'config','geral'));CFG=Object.assign({},DEF,s.exists()?s.data():{});CFG.ativos=Object.assign({},DEF.ativos,CFG.ativos||{});
+    await getDoc(doc(db,'turmas','_teste'));}
+  catch(e){await signOut(auth);renderLogin('Esta conta não tem acesso de professor. Confirme o UID nas regras da Firestore.');return;}
+  turma=turma||CFG.turmas[0];renderMain();
+});
+function renderLogin(msg){
+  if(unsub){unsub();unsub=null;}
+  $('main').innerHTML=`<div class="wrap"><div class="card login"><h2 style="font-size:34px">Área do professor</h2><p class="note">Detetives da Postura</p>
+   <div class="form" style="border:none;padding:0;margin-top:14px"><div class="f"><label for="lE">Email</label><input id="lE" type="text" autocomplete="username"></div>
+   <div class="f"><label for="lP">Palavra-passe</label><input id="lP" type="password" autocomplete="current-password"></div>
+   <div class="msg" id="lM">${esc(msg||'')}</div><button class="btn big" id="lGo">Entrar</button></div></div></div>`;
+  const go=async()=>{$('lM').textContent='';try{await signInWithEmailAndPassword(auth,$('lE').value.trim(),$('lP').value);}catch(e){$('lM').textContent='Email ou palavra-passe errados.';}};
+  $('lGo').onclick=go;$('lP').onkeydown=e=>{if(e.key==='Enter')go();};
+}
+function renderMain(){
+  $('main').innerHTML=`<div class="top"><h2>Detetives da Postura | Professor</h2><span class="who">${esc(auth.currentUser.email||'')}</span><button class="btn ghost small" id="out">Sair</button></div>
+   <div class="wrap" style="max-width:1100px"><div class="ptabs"><button data-t="entregas" class="${tab==='entregas'?'on':''}">Entregas</button><button data-t="config" class="${tab==='config'?'on':''}">Configuração</button></div><div id="body"></div></div>`;
+  $('out').onclick=()=>signOut(auth);
+  document.querySelectorAll('[data-t]').forEach(b=>b.onclick=()=>{tab=b.dataset.t;renderMain();});
+  if(tab==='entregas')renderEntregas();else renderConfig();
+}
+
+// ─── Entregas
+async function loadTurma(){
+  if(unsub)unsub();
+  try{const s=await getDoc(doc(db,'turmas',slug(turma)));lista=s.exists()?(s.data().alunos||[]):[];}catch(e){lista=[];}
+  unsub=onSnapshot(query(collection(db,'entregas'),where('turma','==',turma)),snap=>{entregas=snap.docs.map(d=>Object.assign({id:d.id},d.data()));drawTable();},e=>{toast('Erro a ler as entregas.');console.error(e);});
+}
+const rank=e=>(e.validado?3:e.estado==='entregue'?2:1)*1e13+((e.atualizado&&e.atualizado.toMillis)?e.atualizado.toMillis():0);
+function rows(){
+  const used=new Set();
+  const out=lista.map(n=>{const a=norm(n),ta=a.split(' ');let best=null;
+    entregas.forEach(e=>{const b=e.nomeNorm||norm(e.nome),tb=b.split(' ');
+      const hit=a===b||(ta[0]===tb[0]&&ta[ta.length-1]===tb[tb.length-1])||(ta.length>1&&tb.length>1&&(a.includes(b)||b.includes(a)));
+      if(hit){used.add(e.id);if(!best||rank(e)>rank(best))best=e;}});
+    return {n,e:best,naLista:true};});
+  const extra={};entregas.filter(e=>!used.has(e.id)).forEach(e=>{const k=e.nomeNorm||norm(e.nome);if(!extra[k]||rank(e)>rank(extra[k]))extra[k]=e;});
+  return out.concat(Object.values(extra).map(e=>({n:e.nome,e,naLista:false})));
+}
+const estado=e=>!e?['Não começou','n']:e.validado?['Validado','v']:e.estado==='devolvido'?['Devolvido','c']:e.estado==='entregue'?['Entregue','y']:['Em curso','d'];
+function renderEntregas(){
+  $('body').innerHTML=`<div class="bar"><div class="f"><label for="tS">Turma</label><select id="tS">${CFG.turmas.map(t=>`<option ${t===turma?'selected':''}>${esc(t)}</option>`).join('')}</select></div>
+    <button class="btn ghost small" id="bL">Lista da turma</button><button class="btn small" id="bV">Validar todas as entregues</button><button class="btn ghost small" id="bX">Exportar CSV</button></div>
+   <div class="stats" id="st"></div><div class="tbl-wrap card" style="padding:6px"><table class="t" id="tb"></table></div>
+   <p class="note">Quando valida um trabalho, os dados desse aluno são apagados do computador dele na próxima vez que o exercício for aberto nesse computador.</p>`;
+  $('tS').onchange=e=>{turma=e.target.value;loadTurma();};
+  $('bL').onclick=editLista;$('bX').onclick=exportCsv;
+  $('bV').onclick=async()=>{const alvo=entregas.filter(e=>e.estado==='entregue'&&!e.validado);if(!alvo.length){toast('Não há entregas por validar.');return;}
+    const b=$('bV');if(!b.dataset.ok){b.dataset.ok=1;b.textContent=`Confirmar: validar ${alvo.length}`;return;}
+    const wb=writeBatch(db);alvo.forEach(e=>wb.update(doc(db,'entregas',e.id),{validado:true,estado:'validado',validadoEm:serverTimestamp()}));await wb.commit();toast(`${alvo.length} trabalhos validados.`);b.dataset.ok='';b.textContent='Validar todas as entregues';};
+  loadTurma();
+}
+function drawTable(){
+  if(!$('tb'))return;const R=rows();const c={n:0,d:0,y:0,v:0,c:0};R.forEach(r=>c[estado(r.e)[1]]++);
+  $('st').innerHTML=`<div><b>${c.v}</b>Validados</div><div><b>${c.y}</b>Por validar</div><div><b>${c.d+c.c}</b>Em curso ou devolvidos</div><div><b>${c.n}</b>Não começaram</div>`;
+  $('tb').innerHTML=`<tr><th>Aluno</th><th>Estado</th><th>Estrelas</th><th>Regras</th><th>Formatação</th><th>Atualizado</th><th></th></tr>`+(R.length?R.map(r=>{const [t,k]=estado(r.e);
+    return `<tr><td>${esc(r.n)}${r.naLista?'':' <span class="pill d">fora da lista</span>'}</td><td><span class="pill ${k}">${t}</span></td><td>${r.e?r.e.estrelas+'/'+r.e.estrelasMax:''}</td><td>${r.e?r.e.nRegras:''}</td><td>${r.e?r.e.tarefas+'/5':''}</td><td>${r.e?fmt(r.e.atualizado):''}</td><td>${r.e?`<button class="btn small" data-v="${esc(r.e.id)}">Ver</button>`:''}</td></tr>`;}).join(''):'<tr><td colspan="7">Ainda não há entregas. Use «Lista da turma» para ver também quem não começou.</td></tr>');
+  $('tb').querySelectorAll('[data-v]').forEach(b=>b.onclick=()=>verEntrega(b.dataset.v));
+}
+function verEntrega(id){
+  const e=entregas.find(x=>x.id===id);if(!e)return;const [t,k]=estado(e);
+  modal(`<h2>${esc(e.nome)}</h2><p><b>${esc(e.turma)}</b> | <span class="pill ${k}">${t}</span> | atualizado ${fmt(e.atualizado)}</p>
+   <div class="mrow">${MISSOES.map(([m,n])=>`<span>${n}: ${e.prog&&m in e.prog?stars(e.prog[m]):'desativada'}</span>`).join('')}</div>
+   <p>⭐ ${e.estrelas}/${e.estrelasMax} | ${e.nRegras} regras | formatação ${e.tarefas}/5</p>
+   <div class="preview"><div>${safe(e.tituloHtml)}</div><div style="color:#555;font-size:14px;border-bottom:1px solid #ddd;margin:6px 0 14px;padding-bottom:8px">Nome: ${esc(e.nome)} | Turma: ${esc(e.turma)}</div><div>${safe(e.regrasHtml)}</div></div>
+   <label for="vC">Comentário para o aluno (opcional)</label><textarea id="vC" style="min-height:70px">${esc(e.comentario||'')}</textarea>
+   <div class="msg" id="vM"></div>
+   <div class="mbtns"><button class="btn ghost" id="vDel">Eliminar entrega</button><button class="btn ghost" id="vDev">Devolver ao aluno</button>${e.validado?'<button class="btn ghost" id="vUn">Anular validação</button>':'<button class="btn" id="vOk">Validar</button>'}<button class="btn ghost" id="vX">Fechar</button></div>`);
+  const ref=doc(db,'entregas',id),com=()=>$('vC').value.trim().slice(0,500);
+  $('vX').onclick=close;
+  if($('vOk'))$('vOk').onclick=async()=>{await updateDoc(ref,{validado:true,estado:'validado',validadoEm:serverTimestamp(),comentario:com()});close();toast('Trabalho validado.');};
+  if($('vUn'))$('vUn').onclick=async()=>{await updateDoc(ref,{validado:false,estado:e.entregue?'entregue':'em_curso'});close();toast('Validação anulada.');};
+  $('vDev').onclick=async()=>{if(!com()){$('vM').textContent='Escreva um comentário a explicar o que o aluno deve melhorar.';return;}await updateDoc(ref,{validado:false,estado:'devolvido',comentario:com()});close();toast('Devolvido ao aluno.');};
+  $('vDel').onclick=async()=>{const b=$('vDel');if(!b.dataset.ok){b.dataset.ok=1;b.textContent='Clique outra vez para eliminar';return;}await deleteDoc(ref);close();toast('Entrega eliminada.');};
+}
+function editLista(){
+  modal(`<h2>Lista da ${esc(turma)}</h2><p class="note">Um aluno por linha, com nome e apelido. Pode copiar a lista do Classroom ou da pauta.</p><textarea id="lT" style="min-height:260px">${esc(lista.join('\n'))}</textarea>
+   <div class="mbtns"><button class="btn ghost" id="lX">Cancelar</button><button class="btn" id="lS">Guardar</button></div>`);
+  $('lX').onclick=close;
+  $('lS').onclick=async()=>{const a=$('lT').value.split('\n').map(s=>s.trim().replace(/\s+/g,' ')).filter(Boolean).slice(0,60);await setDoc(doc(db,'turmas',slug(turma)),{turma,alunos:a});lista=a;close();drawTable();toast('Lista guardada.');};
+}
+function exportCsv(){
+  const q=v=>'"'+String(v==null?'':v).replace(/"/g,'""')+'"';
+  const lines=[['Aluno','Turma','Estado','Estrelas',...MISSOES.map(m=>m[1]),'Regras','Formatação','Atualizado','Regras escritas'].map(q).join(';')];
+  rows().forEach(r=>{const e=r.e;lines.push([r.n,turma,estado(e)[0],e?e.estrelas+'/'+e.estrelasMax:'',...MISSOES.map(([m])=>e&&e.prog&&e.prog[m]!=null?e.prog[m]:''),e?e.nRegras:'',e?e.tarefas+'/5':'',e?fmt(e.atualizado):'',e&&e.regras?e.regras.join(' | '):''].map(q).join(';'));});
+  const blob=new Blob(['\ufeff'+lines.join('\r\n')],{type:'text/csv;charset=utf-8'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=`Ergonomia - ${turma}.csv`;document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove();},1500);
+}
+
+// ─── Configuração
+function renderConfig(){
+  if(unsub){unsub();unsub=null;}
+  $('body').innerHTML=`<div class="card mbox" style="max-width:640px;max-height:none"><label>Missões ativas</label><div class="checks">${MISSOES.slice(0,4).map(([m,n])=>`<label><input type="checkbox" data-a="${m}" ${CFG.ativos[m]?'checked':''}> ${n}</label>`).join('')}<label><input type="checkbox" checked disabled> Regras no Word (sempre ativa)</label></div>
+   <label for="cN">Número mínimo de regras no Word</label><select id="cN">${[3,4,5,6,7,8].map(n=>`<option ${n===CFG.minRegras?'selected':''}>${n}</option>`).join('')}</select>
+   <label for="cT">Turmas (separadas por vírgulas)</label><input type="text" id="cT" value="${esc(CFG.turmas.join(', '))}">
+   <div class="mbtns" style="justify-content:flex-start"><button class="btn" id="cS">Guardar</button></div>
+   <p class="note">As alterações chegam aos alunos da próxima vez que abrirem o exercício. Mudar missões a meio pode alterar as estrelas máximas de quem já começou.</p></div>`;
+  $('cS').onclick=async()=>{const c={ativos:{},minRegras:+$('cN').value,turmas:$('cT').value.split(',').map(s=>s.trim()).filter(Boolean)};
+    document.querySelectorAll('[data-a]').forEach(x=>c.ativos[x.dataset.a]=x.checked);if(!c.turmas.length){toast('Indique pelo menos uma turma.');return;}
+    await setDoc(doc(db,'config','geral'),c);CFG=Object.assign({},DEF,c);if(!CFG.turmas.includes(turma))turma=CFG.turmas[0];toast('Configuração guardada.');};
+}
+</script>
+</body></html>

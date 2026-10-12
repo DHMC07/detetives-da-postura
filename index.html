@@ -1,0 +1,522 @@
+<!doctype html>
+<html lang="pt-PT"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><title>Detetives da Postura</title><link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22%3E%3Ctext y=%22.9em%22 font-size=%2290%22%3E🔍%3C/text%3E%3C/svg%3E"><link rel="preconnect" href="https://fonts.googleapis.com"><link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;800&family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet"><link rel="stylesheet" href="estilos.css"><script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script></head><body><div id="app"><main id="main"></main></div><div class="modal" id="modal" role="dialog" aria-modal="true"><div class="mbox" id="mBox"></div></div>
+<script>
+"use strict";
+// ═══════════ CONFIGURAÇÃO ═══════════
+const CFG_DEFAULT={turmas:["5.º A","5.º B","5.º C","5.º D","5.º E","5.º F"],ativos:{m1:true,m2:true,m3:true,m4:true},minRegras:5,pw:"51619c240c05e48a7992d37fab9e8a239a4e82e2e52f21e9253fdbf920db7cb2"};
+let CFG_PUB={};
+try{CFG_PUB=JSON.parse(localStorage.getItem('erg5:cfgCache'))||{};}catch(e){}
+const LSget=k=>{try{return JSON.parse(localStorage.getItem(k));}catch(e){return null;}};
+const LSset=(k,v)=>{try{localStorage.setItem(k,JSON.stringify(v));}catch(e){}};
+let CFG=Object.assign({},CFG_DEFAULT,CFG_PUB);
+CFG.ativos=Object.assign({},CFG_DEFAULT.ativos,CFG.ativos||{});
+const SALT='EPL-ergo5-TIC';
+
+
+const $=id=>document.getElementById(id);
+const esc=s=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const shuffle=a=>{a=a.slice();for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];}return a;};
+const norm=s=>String(s||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z0-9 ]/g,' ').replace(/\s+/g,' ').trim();
+const starsTxt=n=>'⭐'.repeat(n)+'☆'.repeat(3-n);
+function toast(t){const e=document.createElement('div');e.className='toast pop';e.textContent=t;document.body.appendChild(e);setTimeout(()=>e.remove(),2600);}
+const starsFromErrors=(e,a,b)=>e<=a?3:e<=b?2:1;
+
+// ═══════════ ILUSTRAÇÕES (SVG) ═══════════
+function scene(o){
+  const P=Object.assign({back:'ok',seat:'ok',screen:'ok',dist:'ok',wrist:'ok',glare:false,face:'happy',pose:'sit',shirt:'#3E8ED0',pants:'#2F3E66',hair:'#5A3A22',skin:'#E9B48A',markers:null},o||{});
+  const F=236,D=140;
+  const seatY=P.seat==='high'?140:P.seat==='rest'?150:168;
+  const slouch=P.back==='slouch';
+  let hip=slouch?{x:106,y:seatY-6}:{x:92,y:seatY-6};
+  let sh=slouch?{x:130,y:seatY-56}:{x:96,y:seatY-66};
+  let head=slouch?{x:150,y:seatY-70}:{x:100,y:seatY-90};
+  let tilt=0;
+  if(P.screen==='low'&&!slouch){head={x:118,y:seatY-80};sh={x:100,y:seatY-64};tilt=1;}
+  if(P.dist==='close'&&!slouch){head={x:122,y:seatY-86};sh={x:102,y:seatY-64};}
+  let eye={x:head.x+9,y:head.y+(tilt?3:-1)};
+  const idealEye=seatY-91;
+  let sx=P.dist==='close'?166:P.screen==='low'?200:246;
+  let top,h=56;
+  if(P.screen==='low'){top=D-40;h=36;}else if(P.screen==='high'){top=idealEye-50;}else{top=idealEye-6;}
+  const bottom=top+h;
+  const kb0=150;
+  const knee={x:hip.x+44,y:seatY-4};
+  let foot={x:knee.x+2,y:knee.y+70};
+  const onFloor=foot.y>=F-8;
+  if(onFloor)foot.y=F-5;else if(P.seat!=='rest')foot.x=knee.x+10;
+  let E=slouch?{x:sh.x+14,y:sh.y+40}:{x:sh.x+20,y:sh.y+40};
+  let W,H;
+  if(P.screen==='low'){W={x:sx-30,y:D-7};H={x:sx-16,y:D-7};}
+  else{W={x:kb0+4,y:D-6};H={x:kb0+18,y:D-6};}
+  if(P.wrist==='bent'){E={x:E.x,y:E.y+9};W={x:W.x,y:D-3};H={x:W.x+8,y:D-16};}
+  const s=[];
+  s.push(`<rect x="0" y="0" width="360" height="${F}" fill="#F1F7FA"/><rect x="0" y="${F}" width="360" height="24" fill="#E2CFB6"/><rect x="0" y="${F-4}" width="360" height="4" fill="#D2BB9C"/>`);
+  if(P.glare){
+    s.push(`<rect x="8" y="22" width="56" height="72" rx="4" fill="#BFE3F7" stroke="#8A9BB0" stroke-width="4"/><line x1="36" y1="22" x2="36" y2="94" stroke="#8A9BB0" stroke-width="3"/><circle cx="24" cy="40" r="9" fill="#F7C948"/>`);
+  }
+  if(P.pose==='stretch'){
+    s.push(`<circle cx="236" cy="44" r="17" fill="#fff" stroke="#1D2B4F" stroke-width="3"/><line x1="236" y1="44" x2="236" y2="33" stroke="#1D2B4F" stroke-width="3" stroke-linecap="round"/><line x1="236" y1="44" x2="244" y2="48" stroke="#1D2B4F" stroke-width="3" stroke-linecap="round"/>`);
+  }
+  // cadeira
+  s.push(`<rect x="52" y="${seatY-62}" width="9" height="60" rx="4" fill="#6B7A99"/><rect x="58" y="${seatY-4}" width="66" height="9" rx="4" fill="#6B7A99"/><rect x="88" y="${seatY+5}" width="7" height="${F-12-seatY-5}" fill="#8A97B2"/><rect x="64" y="${F-14}" width="56" height="5" rx="2" fill="#8A97B2"/><circle cx="68" cy="${F-5}" r="5" fill="#4A5570"/><circle cx="116" cy="${F-5}" r="5" fill="#4A5570"/>`);
+  if(P.seat==='rest')s.push(`<rect x="${knee.x-16}" y="${foot.y+5}" width="44" height="${F-foot.y-5}" rx="3" fill="#C98B4E" stroke="#9C6735" stroke-width="2"/>`);
+  // mesa
+  s.push(`<rect x="148" y="${D+8}" width="7" height="${F-D-8}" fill="#A86F3A"/><rect x="306" y="${D+8}" width="7" height="${F-D-8}" fill="#B37940"/><rect x="140" y="${D}" width="180" height="8" rx="2" fill="#C98B4E"/>`);
+  const ln=(a,b,c,w)=>`<line x1="${a.x}" y1="${a.y}" x2="${b.x}" y2="${b.y}" stroke="${c}" stroke-width="${w}" stroke-linecap="round"/>`;
+  if(P.pose==='stretch'){
+    const hx=118,hy=170;
+    s.push(ln({x:hx-3,y:hy},{x:hx-5,y:F-6},P.pants,14)+ln({x:hx+4,y:hy},{x:hx+6,y:F-6},P.pants,14));
+    s.push(`<ellipse cx="${hx+1}" cy="${F-5}" rx="11" ry="5" fill="#2E3440"/><ellipse cx="${hx+11}" cy="${F-5}" rx="11" ry="5" fill="#2E3440"/>`);
+    s.push(ln({x:hx,y:hy},{x:hx,y:112},P.shirt,26));
+    s.push(ln({x:hx-6,y:108},{x:hx-22,y:74},P.shirt,11)+ln({x:hx-22,y:74},{x:hx-28,y:42},P.skin,9));
+    s.push(ln({x:hx+6,y:108},{x:hx+22,y:74},P.shirt,11)+ln({x:hx+22,y:74},{x:hx+28,y:42},P.skin,9));
+    head={x:hx+2,y:86};eye={x:head.x+9,y:head.y-1};
+  }else{
+    s.push(ln(hip,knee,P.pants,17)+ln(knee,foot,P.pants,14));
+    s.push(`<ellipse cx="${foot.x+7}" cy="${foot.y+1}" rx="11" ry="5" fill="#2E3440"/>`);
+    if(slouch)s.push(`<path d="M${hip.x} ${hip.y} Q${hip.x-18} ${(hip.y+sh.y)/2+4} ${sh.x} ${sh.y}" stroke="${P.shirt}" stroke-width="26" fill="none" stroke-linecap="round"/>`);
+    else s.push(ln(hip,sh,P.shirt,26));
+  }
+  // pescoço e cabeça
+  s.push(ln({x:(P.pose==='stretch'?head.x-2:sh.x+2),y:(P.pose==='stretch'?100:sh.y)},{x:head.x-2,y:head.y+12},P.skin,9));
+  s.push(`<circle cx="${head.x-3}" cy="${head.y-3}" r="18" fill="${P.hair}"/><circle cx="${head.x+2}" cy="${head.y+2}" r="15.5" fill="${P.skin}"/>`);
+  if(P.face==='tired'){
+    s.push(`<line x1="${eye.x-3}" y1="${eye.y}" x2="${eye.x+3}" y2="${eye.y+1}" stroke="#1D2B4F" stroke-width="2.4" stroke-linecap="round"/><path d="M${head.x+6} ${head.y+11} Q${head.x+10} ${head.y+8} ${head.x+14} ${head.y+11}" stroke="#1D2B4F" stroke-width="2" fill="none" stroke-linecap="round"/><path d="M${head.x-8} ${head.y-22} q3 6 0 9 q-3 -3 0 -9z" fill="#7CC4F0"/>`);
+  }else{
+    s.push(`<circle cx="${eye.x}" cy="${eye.y}" r="2.4" fill="#1D2B4F"/><path d="M${head.x+5} ${head.y+8} Q${head.x+9} ${head.y+12} ${head.x+14} ${head.y+7}" stroke="#1D2B4F" stroke-width="2" fill="none" stroke-linecap="round"/>`);
+  }
+  // ecrã
+  if(P.screen==='low'){
+    s.push(`<rect x="${sx-36}" y="${D-5}" width="44" height="5" rx="2" fill="#5B6478"/><path d="M${sx-2} ${top} L${sx+20} ${top+6} L${sx+16} ${D-5} L${sx-4} ${D-5} Z" fill="#3A4256" stroke="#3A4256" stroke-width="3" stroke-linejoin="round"/><path d="M${sx+1} ${top+4} L${sx+17} ${top+9} L${sx+14} ${D-8} L${sx-1} ${D-8} Z" fill="#8FD3F5"/>`);
+  }else{
+    let books='';
+    if(P.screen==='high'){const bh=D-(bottom+6);const cols=['#E05A47','#F4B63F','#138A7A','#3E8ED0'];let y=D;let i=0;while(y-12>=bottom+6&&i<6){books+=`<rect x="${sx-14}" y="${y-12}" width="48" height="12" rx="2" fill="${cols[i%4]}"/>`;y-=12;i++;}s.push(books);
+      s.push(`<rect x="${sx+7}" y="${bottom-2}" width="5" height="${Math.max(0,y-bottom+2)}" fill="#3A4256"/><rect x="${sx-4}" y="${y-3}" width="28" height="3" rx="1" fill="#3A4256"/>`);}
+    else s.push(`<rect x="${sx+7}" y="${bottom-2}" width="5" height="${D-bottom+2}" fill="#3A4256"/><rect x="${sx-4}" y="${D-4}" width="28" height="4" rx="2" fill="#3A4256"/>`);
+    s.push(`<path d="M${sx-4} ${top} L${sx+22} ${top+8} L${sx+22} ${bottom-4} L${sx-4} ${bottom} Z" fill="#3A4256" stroke="#3A4256" stroke-width="4" stroke-linejoin="round"/><path d="M${sx-1} ${top+4} L${sx+19} ${top+10} L${sx+19} ${bottom-7} L${sx-1} ${bottom-4} Z" fill="#8FD3F5"/>`);
+    if(P.pose!=='stretch'||true)s.push(`<rect x="${kb0}" y="${D-4}" width="34" height="4" rx="1.5" fill="#5B6478"/>${P.dist==='close'?'':`<ellipse cx="${kb0+44}" cy="${D-2}" rx="5" ry="2.5" fill="#5B6478"/>`}`);
+  }
+  if(P.glare){
+    const fy=top+h/2;
+    s.push(`<g stroke="#F4B63F" stroke-width="3" stroke-dasharray="6 6" opacity=".85"><line x1="64" y1="40" x2="${sx-4}" y2="${fy-14}"/><line x1="64" y1="62" x2="${sx-4}" y2="${fy}"/><line x1="64" y1="84" x2="${sx-4}" y2="${fy+14}"/></g><path d="M${sx-2} ${fy-12} l3 9 l9 3 l-9 3 l-3 9 l-3 -9 l-9 -3 l9 -3z" fill="#fff" stroke="#F4B63F" stroke-width="1.5"/>`);
+  }
+  if(P.pose!=='stretch'){
+    s.push(ln(sh,E,'rgba(0,0,0,.22)',14)+ln(sh,E,P.shirt,11)+ln(E,W,P.skin,9)+ln(W,H,P.skin,9));
+  }
+  // marcadores (missão 3)
+  if(P.markers){
+    s.push(`<line x1="${eye.x+4}" y1="${eye.y}" x2="${sx-5}" y2="${eye.y}" stroke="#138A7A" stroke-width="2.5" stroke-dasharray="5 5"/>`);
+    const M={1:{x:sx+36,y:top+8},2:{x:44,y:seatY-38},3:{x:E.x+4,y:E.y+20},4:{x:W.x+6,y:D-24},5:{x:foot.x+26,y:foot.y-12},6:{x:(eye.x+sx)/2,y:eye.y-16}};
+    for(const k in M){const m=M[k];s.push(`<g class="mk"><circle cx="${m.x}" cy="${m.y}" r="12" fill="#138A7A" stroke="#fff" stroke-width="3"/><text x="${m.x}" y="${m.y+5}" text-anchor="middle" font-family="Baloo 2,Nunito,sans-serif" font-weight="800" font-size="15" fill="#fff">${k}</text></g>`);}
+  }
+  const spots={back:slouch?{x:hip.x-6,y:(hip.y+sh.y)/2}:{x:hip.x,y:(hip.y+sh.y)/2},feet:{x:foot.x+6,y:foot.y},wrist:{x:W.x+3,y:W.y-5},screen:{x:sx+9,y:top+h/2},window:{x:36,y:58},eyes:eye};
+  const svg=`<svg viewBox="0 0 360 260" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="${esc(P.alt||'Ilustração de uma criança ao computador')}">${s.join('')}<g class="layer"></g></svg>`;
+  return {svg,spots};
+}
+// ═══════════ CONTEÚDOS ═══════════
+const KIDS=[{shirt:'#3E8ED0',hair:'#5A3A22',skin:'#E9B48A'},{shirt:'#E05A47',hair:'#1E1A18',skin:'#8D5A3B'},{shirt:'#138A7A',hair:'#2B1D14',skin:'#C68A5E'},{shirt:'#9B5DE5',hair:'#C7862F',skin:'#F1C6A0'},{shirt:'#F4B63F',hair:'#2B1D14',skin:'#6E4630'}];
+const CARDS=[
+  {o:{},ok:true,cap:'O Tiago a fazer os trabalhos de casa.',why:'Costas apoiadas, pés no chão, cotovelos dobrados e ecrã à altura dos olhos.'},
+  {o:{back:'slouch'},ok:false,cap:'A Ana a jogar no computador.',why:'As costas estão curvadas e longe da cadeira. Encosta as costas!'},
+  {o:{seat:'high'},ok:false,cap:'O Rui numa cadeira muito alta.',why:'Os pés ficam no ar. Baixa a cadeira ou usa um apoio para os pés.'},
+  {o:{seat:'rest'},ok:true,cap:'A Joana com um apoio para os pés.',why:'A cadeira está alta para chegar à mesa, mas o apoio deixa os pés bem assentes.'},
+  {o:{dist:'close'},ok:false,cap:'O Pedro a ler uma história no ecrã.',why:'O ecrã está demasiado perto. Deve ficar à distância de um braço.'},
+  {o:{screen:'low'},ok:false,cap:'A Marta com o portátil em cima da mesa.',why:'O ecrã está muito baixo e a cabeça dobra-se para a frente.'},
+  {o:{glare:true,face:'tired'},ok:false,cap:'O Duarte ao pé da janela.',why:'A luz da janela bate no ecrã e faz reflexos. A janela deve ficar ao lado do ecrã.'},
+  {o:{pose:'stretch'},ok:true,cap:'A Inês, depois de 30 minutos ao computador.',why:'Fazer pausas e esticar o corpo faz muito bem às costas e aos olhos.'}
+];
+const SPOTS=[
+  {k:'back',n:'Costas curvadas'},{k:'feet',n:'Pés no ar'},{k:'wrist',n:'Pulsos dobrados'},{k:'screen',n:'Ecrã demasiado perto'},{k:'window',n:'Luz da janela no ecrã'}
+];
+const MATCH=[
+  {k:1,t:'O topo do ecrã fica à altura dos olhos'},
+  {k:2,t:'As costas ficam apoiadas na cadeira'},
+  {k:3,t:'Os cotovelos dobram-se em ângulo reto'},
+  {k:4,t:'Os pulsos ficam direitos, sem dobrar'},
+  {k:5,t:'Os pés ficam bem assentes no chão'},
+  {k:6,t:'O ecrã fica à distância de um braço'}
+];
+const QUIZ=[
+  {i:'📏',q:'A que distância deve ficar o ecrã dos teus olhos?',a:['Mais ou menos um braço esticado','Um palmo','Do outro lado da sala'],why:'Um braço esticado é a distância certa para os olhos não se cansarem.'},
+  {i:'⏰',q:'Estás no computador há 30 minutos. O que fazes?',a:['Levanto-me, estico-me e mexo-me um pouco','Continuo sem parar até acabar','Chego-me mais perto do ecrã'],why:'Pausas curtas descansam as costas, os olhos e a cabeça.'},
+  {i:'👀',q:'Os teus olhos estão cansados. O que ajuda?',a:['Olhar para longe durante 20 segundos e piscar os olhos','Esfregar os olhos com força','Pôr o brilho do ecrã no máximo'],why:'Olhar para longe e piscar os olhos ajuda-os a descansar.'},
+  {i:'🪟',q:'Onde deve ficar a janela em relação ao ecrã?',a:['Ao lado do ecrã','Atrás de mim, com a luz a bater no ecrã','Atrás do ecrã, a encandear-me'],why:'Com a janela ao lado não há reflexos nem encandeamento.'},
+  {i:'🖱️',q:'Onde deves pôr o rato?',a:['Ao lado do teclado, perto de mim','Na ponta da mesa, com o braço esticado','No colo'],why:'Perto do teclado, o braço fica relaxado e o ombro não se cansa.'},
+  {i:'📱',q:'Como deves usar o tablet?',a:['Sentado, com o tablet apoiado à frente dos olhos','Deitado na cama, de barriga para baixo','Com a cabeça muito dobrada durante muito tempo'],why:'Sentado e com o tablet apoiado, o pescoço não sofre.'}
+];
+const MISSIONS=[
+  {id:'m1',n:'Certo ou errado?',d:'Olha para cada imagem e decide se a postura está certa.',th:{back:'slouch'}},
+  {id:'m2',n:'Encontra os 5 erros',d:'Usa a lupa de detetive para descobrir o que está mal.',th:{back:'slouch',seat:'high',dist:'close',wrist:'bent',glare:true,face:'tired'}},
+  {id:'m3',n:'Liga as regras',d:'Diz qual é a regra de cada número na imagem.',th:{markers:true}},
+  {id:'m4',n:'Quiz da ergonomia',d:'Seis perguntas para provar que és um especialista.',th:{pose:'stretch'}},
+  {id:'m5',n:'As minhas regras no Word',d:'Escreve as tuas próprias regras de ergonomia num documento.',th:{seat:'rest'},word:true}
+];
+const active=()=>MISSIONS.filter(m=>m.word||CFG.ativos[m.id]);
+
+// ═══════════ ESTADO DO ALUNO ═══════════
+const S={name:'',turma:'',key:'',prog:{},doc:null,screen:'home',unlockAll:false};
+function load(){const d=LSget('erg5:p:'+S.key)||{};S.prog=d.prog||{};S.doc=d.doc||null;S.meta=d.meta||{};S.comentario='';}
+function save(){S.meta=S.meta||{};S.meta.pending=true;LSset('erg5:p:'+S.key,{prog:S.prog,doc:S.doc,name:S.name,turma:S.turma,meta:S.meta});queueSync();}
+const totalStars=()=>active().reduce((a,m)=>a+((S.prog[m.id]&&S.prog[m.id].stars)||0),0);
+const allDone=()=>active().every(m=>S.prog[m.id]&&S.prog[m.id].done);
+function setDone(id,stars,extra){const p=S.prog[id]||{};S.prog[id]=Object.assign(p,{done:true,stars:Math.max(p.stars||0,stars)},extra||{});save();}
+
+// ═══════════ ECRÃS ═══════════
+const main=()=>$('main');
+function topbar(title){
+  return `<div class="top"><h2>${esc(title)}</h2><span class="who">${esc(S.name)} | ${esc(S.turma)}</span><span class="stars" title="Estrelas">⭐ ${totalStars()}/${active().length*3}</span><button class="btn ghost small" data-go="map">Mapa</button></div>`;
+}
+function bindGo(root){root.querySelectorAll('[data-go]').forEach(b=>b.onclick=()=>{const g=b.dataset.go;if(g==='map')renderMap();else if(g==='home')renderHome();});}
+function show(html,name){S.screen=name;main().innerHTML=html;bindGo(main());window.scrollTo(0,0);}
+
+function renderHome(){
+  const hero=scene(Object.assign({alt:'Criança sentada ao computador com boa postura'},KIDS[0])).svg;
+  const lens=`<svg class="lens" viewBox="0 0 100 100" aria-hidden="true"><circle cx="40" cy="40" r="28" fill="#fff" fill-opacity=".55" stroke="#1D2B4F" stroke-width="8"/><line x1="61" y1="61" x2="90" y2="90" stroke="#1D2B4F" stroke-width="13" stroke-linecap="round"/></svg>`;
+  show(`<div class="wrap"><div class="home">
+    <div><h1>Detetives da Postura</h1><p class="sub">Ergonomia em TIC, 5.º ano. Descobre como te sentar bem ao computador e escreve as tuas próprias regras.</p>
+      <div class="form">
+        <div class="f"><label for="hName">O teu nome e apelido</label><input id="hName" type="text" autocomplete="off" maxlength="40" value="${esc(S.name)}"></div>
+        <div class="f"><label for="hTurma">A tua turma</label><select id="hTurma"><option value="">Escolhe a turma</option>${CFG.turmas.map(t=>`<option ${t===S.turma?'selected':''}>${esc(t)}</option>`).join('')}</select></div>
+        <div class="msg" id="hMsg"></div>
+        <button class="btn big" id="hGo">Começar</button>
+      </div></div>
+    <div class="hero">${hero}${lens}</div>
+  </div></div>`,'home');
+  const go=()=>{const n=$('hName').value.trim().replace(/\s+/g,' '),t=$('hTurma').value;
+    if(n.split(' ').length<2){$('hMsg').textContent='Escreve o teu nome e o teu apelido.';return;}
+    if(!t){$('hMsg').textContent='Escolhe a tua turma.';return;}
+    S.name=n;S.turma=t;S.key=norm(n)+'|'+t;load();enterStudent();};
+  $('hGo').onclick=go;$('hName').onkeydown=e=>{if(e.key==='Enter')go();};
+}
+
+function renderMap(){
+  const ms=active();let prevDone=true;
+  const rows=ms.map((m,i)=>{const p=S.prog[m.id]||{};const open=S.unlockAll||prevDone;prevDone=!!p.done;
+    const th=scene(Object.assign({},KIDS[(i+1)%5],m.th)).svg;
+    return `<div class="stop ${p.done?'done':''} ${open?'':'locked'}"><div class="num">${i+1}</div><div class="thumb">${th}</div>
+      <div><h3>${esc(m.n)}</h3><p>${esc(m.d)}</p>${p.done?`<div class="st">${starsTxt(p.stars||0)}</div>`:''}</div>
+      <div class="act">${open?`<button class="btn ${p.done?'ghost':''}" data-m="${m.id}">${p.done?'Repetir':'Jogar'}</button>`:'<span class="note">🔒 Termina a anterior</span>'}</div></div>`;}).join('');
+  const done=allDone();
+  show(topbar('O meu mapa')+`<div class="wrap">${S.comentario?`<div class="mhead"><div class="tip" style="border-color:var(--sun);background:var(--sun-soft)">💬 Mensagem do professor: ${esc(S.comentario)}</div></div>`:''}<div class="mhead"><div class="tip">Olá, ${esc(S.name.split(' ')[0])}! Completa as missões pela ordem. O teu trabalho é enviado automaticamente ao professor.</div></div>
+   <div class="trail">${rows}
+   <div class="stop final ${done?'':'locked'}"><div class="num">✓</div><div class="thumb"></div><div><h3>Entregar ao professor</h3><p>${done?'Já podes ver a tua entrega.':'Fica disponível quando terminares todas as missões.'}</p></div>
+   <div class="act">${done?'<button class="btn sun" id="goDeliver">Ver a entrega</button>':''}</div></div></div></div>`,'map');
+  main().querySelectorAll('[data-m]').forEach(b=>b.onclick=()=>openMission(b.dataset.m));
+  if($('goDeliver'))$('goDeliver').onclick=renderDeliver;
+}
+function openMission(id){({m1:runCards,m2:runSpots,m3:runMatch,m4:runQuiz,m5:runWord})[id]();}
+function nextAfter(id){const ms=active();const i=ms.findIndex(m=>m.id===id);return ms[i+1]||null;}
+function result(id,stars,msg){
+  const nx=nextAfter(id);
+  $('mBox').innerHTML=`<h2 class="center">Missão cumprida!</h2><div class="bigstars pop">${starsTxt(stars)}</div><p class="center" style="font-weight:700">${esc(msg)}</p>
+   <div class="mbtns" style="justify-content:center"><button class="btn ghost" id="rMap">Ver o mapa</button>${nx?`<button class="btn" id="rNext">Próxima missão</button>`:(allDone()?'<button class="btn sun" id="rDel">Ver a entrega</button>':'')}</div>`;
+  $('modal').classList.add('on');
+  $('rMap').onclick=()=>{$('modal').classList.remove('on');renderMap();};
+  if($('rNext'))$('rNext').onclick=()=>{$('modal').classList.remove('on');openMission(nx.id);};
+  if($('rDel'))$('rDel').onclick=()=>{$('modal').classList.remove('on');renderDeliver();};
+}
+
+// ── Missão 1: certo ou errado
+function runCards(){
+  const list=shuffle(CARDS).map((c,i)=>Object.assign({},c,{kid:KIDS[i%5]}));
+  let i=0,errors=0;const res=[];
+  const draw=()=>{const c=list[i];
+    show(topbar('Missão: Certo ou errado?')+`<div class="wrap"><div class="cards-grid"><div class="card">
+      <div class="dots">${list.map((_,j)=>`<i class="${j===i?'cur':''} ${res[j]===true?'ok':res[j]===false?'bad':''}"></i>`).join('')}</div>
+      <div class="scene">${scene(Object.assign({},c.kid,c.o,{alt:c.cap})).svg}</div>
+      <p class="cap">${esc(c.cap)}</p>
+      <div class="choice" id="ch"><button class="btn" data-a="1">✅ Certo</button><button class="btn no" data-a="0">❌ Errado</button></div>
+      <div id="fb"></div></div></div></div>`,'m1');
+    $('ch').querySelectorAll('button').forEach(b=>b.onclick=()=>{
+      const ans=b.dataset.a==='1',good=ans===c.ok;res[i]=good;if(!good)errors++;
+      $('ch').querySelectorAll('button').forEach(x=>x.disabled=true);
+      $('fb').innerHTML=`<div class="feedback ${good?'ok':'bad'} pop"><span>${good?'Muito bem!':'Ups!'} Está <b>${c.ok?'certo':'errado'}</b>. ${esc(c.why)}</span><button class="btn small" id="nx">${i<list.length-1?'Seguinte':'Terminar'}</button></div>`;
+      $('nx').onclick=()=>{i++;if(i<list.length)draw();else{const st=starsFromErrors(errors,0,2);setDone('m1',st);result('m1',st,errors?`Acertaste ${list.length-errors} de ${list.length}.`:'Acertaste em todas!');}};
+      $('nx').focus();});
+  };draw();
+}
+
+// ── Missão 2: encontra os erros
+function runSpots(){
+  const sc=scene(Object.assign({},KIDS[1],{back:'slouch',seat:'high',dist:'close',wrist:'bent',glare:true,face:'tired',alt:'Criança ao computador com vários erros de postura'}));
+  const found={};let miss=0;
+  show(topbar('Missão: Encontra os 5 erros')+`<div class="wrap"><div class="mhead"><div class="tip">🔍 Este menino está a fazer tudo ao contrário! Clica nos 5 sítios onde há um erro.</div></div>
+    <div class="card"><div class="spotwrap"><div class="scene" id="sp">${sc.svg}</div></div>
+    <div class="found" id="fl">${SPOTS.map(s=>`<span data-k="${s.k}">❔ ${esc(s.n)}</span>`).join('')}</div>
+    <p class="note" id="sMsg">Encontraste 0 de 5.</p><button class="btn ghost small" id="hint">Preciso de uma pista</button></div></div>`,'m2');
+  const svg=$('sp').querySelector('svg'),layer=svg.querySelector('.layer');
+  const mark=(p,ok)=>{const ns='http://www.w3.org/2000/svg';const c=document.createElementNS(ns,'circle');c.setAttribute('cx',p.x);c.setAttribute('cy',p.y);c.setAttribute('r',ok?20:9);c.setAttribute('fill',ok?'none':'#E05A47');c.setAttribute('fill-opacity',ok?0:.55);c.setAttribute('stroke',ok?'#138A7A':'none');c.setAttribute('stroke-width',4);layer.appendChild(c);if(!ok)setTimeout(()=>c.remove(),700);};
+  svg.addEventListener('click',e=>{
+    const pt=svg.createSVGPoint();pt.x=e.clientX;pt.y=e.clientY;const p=pt.matrixTransform(svg.getScreenCTM().inverse());
+    let hit=null;for(const s of SPOTS){if(found[s.k])continue;const q=sc.spots[s.k];if(Math.hypot(q.x-p.x,q.y-p.y)<24){hit=s;break;}}
+    if(hit){found[hit.k]=1;mark(sc.spots[hit.k],true);const el=$('fl').querySelector(`[data-k="${hit.k}"]`);el.classList.add('on','pop');el.textContent='✅ '+hit.n;
+      const n=Object.keys(found).length;$('sMsg').textContent=`Encontraste ${n} de 5.`;
+      if(n===5){const st=starsFromErrors(miss,2,5);setDone('m2',st);setTimeout(()=>result('m2',st,'Descobriste todos os erros, detetive!'),500);}}
+    else{miss++;mark(p,false);}
+  });
+  $('hint').onclick=()=>{const s=SPOTS.find(s=>!found[s.k]);if(!s)return;miss+=2;const q=sc.spots[s.k];const ns='http://www.w3.org/2000/svg';const c=document.createElementNS(ns,'circle');c.setAttribute('cx',q.x);c.setAttribute('cy',q.y);c.setAttribute('r',30);c.setAttribute('fill','#F4B63F');c.setAttribute('fill-opacity',.35);layer.appendChild(c);setTimeout(()=>c.remove(),1200);toast('Olha para a zona que piscou!');};
+}
+
+// ── Missão 3: liga as regras
+function runMatch(){
+  const sc=scene(Object.assign({},KIDS[2],{markers:true,alt:'Criança com boa postura e números a apontar partes do corpo'}));
+  const opts=shuffle(MATCH);let wrong=0;
+  show(topbar('Missão: Liga as regras')+`<div class="wrap"><div class="mhead"><div class="tip">A Sofia está sentada na perfeição. Escolhe a regra certa para cada número da imagem.</div></div>
+   <div class="card match"><div class="scene">${sc.svg}</div><div><div class="rows">${MATCH.map(m=>`<div class="r" id="r${m.k}"><b>${m.k}</b><select data-k="${m.k}" aria-label="Regra do número ${m.k}"><option value="">Escolhe…</option>${opts.map(o=>`<option value="${o.k}">${esc(o.t)}</option>`).join('')}</select></div>`).join('')}</div>
+   <p class="note" id="mMsg"></p><button class="btn" id="mChk">Verificar</button></div></div></div>`,'m3');
+  $('mChk').onclick=()=>{let bad=0,empty=0;
+    main().querySelectorAll('select[data-k]').forEach(s=>{const r=$('r'+s.dataset.k);r.classList.remove('ok','bad');if(!s.value){empty++;return;}if(s.value===s.dataset.k){r.classList.add('ok');s.disabled=true;}else{r.classList.add('bad');bad++;}});
+    if(empty){$('mMsg').textContent=`Ainda faltam ${empty} números.`;return;}
+    if(bad){wrong+=bad;$('mMsg').textContent=`${bad} ${bad>1?'regras não estão':'regra não está'} no sítio certo. Tenta outra vez!`;return;}
+    const st=starsFromErrors(wrong,0,2);setDone('m3',st);result('m3',st,wrong?'Conseguiste ligar todas as regras!':'Todas certas à primeira!');};
+}
+
+// ── Missão 4: quiz
+function runQuiz(){
+  const qs=QUIZ.map(q=>Object.assign({},q,{opts:shuffle(q.a.map((t,j)=>({t,ok:j===0})))}));
+  let i=0,errors=0;
+  const draw=()=>{const q=qs[i];
+    show(topbar('Missão: Quiz da ergonomia')+`<div class="wrap"><div class="quiz card"><div class="dots">${qs.map((_,j)=>`<i class="${j<i?'ok':''} ${j===i?'cur':''}"></i>`).join('')}</div>
+     <div class="q"><span class="ico" aria-hidden="true">${q.i}</span><span>${esc(q.q)}</span></div>
+     <div class="opts" id="op">${q.opts.map((o,j)=>`<button class="opt" data-j="${j}">${esc(o.t)}</button>`).join('')}</div><div id="fb"></div></div></div>`,'m4');
+    let first=true;
+    $('op').querySelectorAll('.opt').forEach(b=>b.onclick=()=>{const o=q.opts[+b.dataset.j];
+      if(o.ok){b.classList.add('ok');$('op').querySelectorAll('.opt').forEach(x=>x.disabled=true);
+        $('fb').innerHTML=`<div class="feedback ok pop"><span>${first?'Certíssimo!':'Agora sim!'} ${esc(q.why)}</span><button class="btn small" id="nx">${i<qs.length-1?'Seguinte':'Terminar'}</button></div>`;
+        $('nx').onclick=()=>{i++;if(i<qs.length)draw();else{const st=starsFromErrors(errors,0,2);setDone('m4',st);result('m4',st,errors?`Erraste ${errors} ${errors>1?'vezes':'vez'}, mas chegaste ao fim!`:'Nem um erro!');}};$('nx').focus();}
+      else{b.classList.add('bad');b.disabled=true;if(first)errors++;first=false;}});
+  };draw();
+}
+// ── Missão 5: Word
+const ICO={
+  ol:'<svg viewBox="0 0 20 20"><text x="1" y="7" font-size="6" font-family="Arial" fill="currentColor">1.</text><text x="1" y="13" font-size="6" font-family="Arial" fill="currentColor">2.</text><text x="1" y="19" font-size="6" font-family="Arial" fill="currentColor">3.</text><rect x="8" y="4" width="11" height="1.6" fill="currentColor"/><rect x="8" y="10" width="11" height="1.6" fill="currentColor"/><rect x="8" y="16" width="11" height="1.6" fill="currentColor"/></svg>',
+  ul:'<svg viewBox="0 0 20 20"><circle cx="3" cy="5" r="1.6" fill="currentColor"/><circle cx="3" cy="11" r="1.6" fill="currentColor"/><circle cx="3" cy="17" r="1.6" fill="currentColor"/><rect x="8" y="4" width="11" height="1.6" fill="currentColor"/><rect x="8" y="10" width="11" height="1.6" fill="currentColor"/><rect x="8" y="16" width="11" height="1.6" fill="currentColor"/></svg>',
+  al:'<svg viewBox="0 0 20 20"><rect x="2" y="4" width="16" height="1.6" fill="currentColor"/><rect x="2" y="8" width="10" height="1.6" fill="currentColor"/><rect x="2" y="12" width="16" height="1.6" fill="currentColor"/><rect x="2" y="16" width="10" height="1.6" fill="currentColor"/></svg>',
+  ac:'<svg viewBox="0 0 20 20"><rect x="2" y="4" width="16" height="1.6" fill="currentColor"/><rect x="5" y="8" width="10" height="1.6" fill="currentColor"/><rect x="2" y="12" width="16" height="1.6" fill="currentColor"/><rect x="5" y="16" width="10" height="1.6" fill="currentColor"/></svg>',
+  ar:'<svg viewBox="0 0 20 20"><rect x="2" y="4" width="16" height="1.6" fill="currentColor"/><rect x="8" y="8" width="10" height="1.6" fill="currentColor"/><rect x="2" y="12" width="16" height="1.6" fill="currentColor"/><rect x="8" y="16" width="10" height="1.6" fill="currentColor"/></svg>',
+  undo:'<svg viewBox="0 0 20 20"><path d="M7 5 L3 9 L7 13" stroke="currentColor" stroke-width="2" fill="none"/><path d="M3 9 H12 a5 5 0 0 1 0 10 H9" stroke="currentColor" stroke-width="2" fill="none"/></svg>'
+};
+const COLORS=['#000000','#C00000','#E36C0A','#00B050','#0070C0','#7030A0'];
+let savedRange=null;
+const zoneOf=n=>{while(n){if(n.nodeType===1&&n.classList&&n.classList.contains('zone'))return n;n=n.parentNode;}return null;};
+function restoreSel(){if(!savedRange)return false;const z=zoneOf(savedRange.commonAncestorContainer);if(!z||!document.contains(z))return false;z.focus({preventScroll:true});const s=getSelection();s.removeAllRanges();s.addRange(savedRange);return true;}
+function cmd(c,v){if(!restoreSel()){toast('Clica primeiro no documento.');return;}document.execCommand('styleWithCSS',false,false);document.execCommand(c,false,v==null?null:v);afterEdit();}
+function needSel(){if(!savedRange||savedRange.collapsed){toast('Seleciona primeiro o texto que queres mudar.');return false;}return true;}
+function applySize(pt){if(!needSel())return;if(!restoreSel())return;document.execCommand('styleWithCSS',false,false);document.execCommand('fontSize',false,'7');
+  document.querySelectorAll('.page font[size="7"]').forEach(f=>{const sp=document.createElement('span');sp.style.fontSize=pt+'pt';while(f.firstChild)sp.appendChild(f.firstChild);f.replaceWith(sp);});afterEdit();}
+function blocks(z){const out=[];let cur=null;const flush=()=>{if(cur&&cur.nodes.length)out.push(cur);cur=null;};
+  for(const n of [...z.childNodes]){
+    if(n.nodeType===1&&(n.tagName==='OL'||n.tagName==='UL')){flush();let i=0;for(const li of n.children){if(li.tagName==='LI'){i++;out.push({nodes:[li],prefix:n.tagName==='OL'?i+'. ':'• ',ol:n.tagName==='OL'});}}}
+    else if(n.nodeType===1&&/^(DIV|P|H\d)$/.test(n.tagName)){flush();if(n.querySelector('ol,ul'))out.push(...blocks(n));else out.push({nodes:[n],prefix:'',ol:false});}
+    else if(n.nodeType===1&&n.tagName==='BR'){flush();}
+    else{if(!cur)cur={nodes:[],prefix:'',ol:false};cur.nodes.push(n);}
+  }flush();
+  return out.map(b=>Object.assign(b,{text:b.nodes.map(x=>x.textContent).join('').replace(/\s+/g,' ').trim()})).filter(b=>b.text);}
+const words=t=>t.split(/\s+/).filter(w=>/[A-Za-zÀ-ÿ]/.test(w)).length;
+function textNodes(root){const w=document.createTreeWalker(root,NodeFilter.SHOW_TEXT);const a=[];let n;while((n=w.nextNode()))if(n.nodeValue.trim())a.push(n);return a;}
+function checkDoc(){
+  const t=$('wTitle'),r=$('wRules');if(!t||!r)return null;
+  const tn=textNodes(t),N=CFG.minRegras;
+  const isBold=n=>{const fw=getComputedStyle(n.parentElement).fontWeight;return fw==='bold'||parseInt(fw,10)>=600;};
+  const bl=blocks(r),valid=bl.filter(b=>words(b.text)>=3),inOl=valid.filter(b=>b.ol).length;
+  const blockOf=n=>{let e=n.parentElement;while(e&&e!==t&&getComputedStyle(e).display==='inline')e=e.parentElement;return e;};
+  const colored=[...textNodes(t),...textNodes(r)].some(n=>{const c=getComputedStyle(n.parentElement).color.replace(/\s/g,'');return c!=='rgb(0,0,0)'&&c!=='rgba(0,0,0,1)';});
+  const tasks=[
+    {id:'rules',req:true,t:`Escreve pelo menos ${N} regras (cada uma com 3 palavras ou mais)`,ok:valid.length>=N,extra:` (${valid.length}/${N})`},
+    {id:'ol',t:'Põe as regras numa lista numerada',ok:valid.length>=2&&inOl===valid.length},
+    {id:'bold',t:'Põe o título a negrito',ok:tn.length>0&&tn.every(isBold)},
+    {id:'center',t:'Centra o título',ok:tn.length>0&&tn.every(n=>getComputedStyle(blockOf(n)||t).textAlign==='center')},
+    {id:'size',t:'Aumenta o título para tamanho 20 ou mais',ok:tn.length>0&&tn.every(n=>parseFloat(getComputedStyle(n.parentElement).fontSize)>=26)},
+    {id:'color',t:'Pinta uma palavra importante com outra cor',ok:colored}
+  ];
+  return {tasks,valid,bl};
+}
+let chkT=null;
+function afterEdit(){
+  const r=$('wRules');if(!r)return;r.classList.toggle('vazio',!r.textContent.trim()&&!r.querySelector('li'));
+  S.doc={title:$('wTitle').innerHTML,rules:r.innerHTML};save();
+  clearTimeout(chkT);chkT=setTimeout(renderTasks,150);ribbonState();
+}
+function renderTasks(){const c=checkDoc();if(!c)return;
+  $('wTasks').innerHTML=c.tasks.map(k=>`<li class="${k.ok?'ok':''} ${k.req?'req':''}"><i>${k.ok?'✓':''}</i><span>${esc(k.t)}${k.extra||''}${k.req?' <b>(obrigatório)</b>':''}</span></li>`).join('');
+  $('wDone').disabled=!c.tasks[0].ok;}
+function ribbonState(){const s=getSelection();const inZ=s.rangeCount&&zoneOf(s.getRangeAt(0).commonAncestorContainer);
+  ['bold','italic','underline','insertOrderedList','insertUnorderedList','justifyLeft','justifyCenter','justifyRight'].forEach(c=>{const b=document.querySelector(`.w-btn[data-c="${c}"]`);if(b){let on=false;try{on=inZ&&document.queryCommandState(c);}catch(e){}b.classList.toggle('on',!!on);}});}
+const clean=h=>String(h||'').replace(/<script[\s\S]*?<\/script>/gi,'').replace(/\son\w+\s*=\s*("[^"]*"|'[^']*'|[^\s>]+)/gi,'');
+function runWord(){
+  const N=CFG.minRegras;
+  const tabs=['Ficheiro','Base','Inserir','Desenhar','Estrutura','Esquema','Referências','Rever','Ver'];
+  show(topbar('Missão: As minhas regras no Word')+`<div class="wrap" style="max-width:1180px"><div class="mhead"><div class="tip">✍️ Agora és tu o especialista! Escreve as tuas regras de ergonomia e formata o documento com o separador <b>Base</b>. Cumpre as tarefas da direita.</div></div>
+  <div class="word">
+   <div class="w-title"><span>As minhas regras de ergonomia - Word</span><span>${esc(S.name)}</span></div>
+   <div class="w-tabs">${tabs.map(t=>`<button class="${t==='Base'?'on':'off'}" data-t="${t}">${t}</button>`).join('')}</div>
+   <div class="w-ribbon" id="rib">
+    <div class="w-group"><div class="rowb"><button class="w-btn" data-c="undo" title="Anular">${ICO.undo}</button></div><small>Anular</small></div>
+    <div class="w-group"><div class="rowb">
+      <select class="w-sel" id="wFont" title="Tipo de letra" aria-label="Tipo de letra"><option>Arial</option><option>Verdana</option><option>Comic Sans MS</option><option>Georgia</option><option>Times New Roman</option><option>Trebuchet MS</option></select>
+      <select class="w-sel" id="wSize" title="Tamanho do tipo de letra" aria-label="Tamanho"><option value="">Tam.</option>${[8,10,11,12,14,16,18,20,22,24,28,36].map(s=>`<option>${s}</option>`).join('')}</select></div>
+     <div class="rowb"><button class="w-btn" data-c="bold" title="Negrito (Ctrl+B)"><b>N</b></button><button class="w-btn" data-c="italic" title="Itálico (Ctrl+I)"><i>I</i></button><button class="w-btn" data-c="underline" title="Sublinhado (Ctrl+U)"><u>S</u></button>
+      <span class="w-colors" title="Cor do tipo de letra">${COLORS.map(c=>`<button data-color="${c}" style="background:${c}" aria-label="Cor ${c}"></button>`).join('')}</span></div><small>Tipo de Letra</small></div>
+    <div class="w-group"><div class="rowb"><button class="w-btn" data-c="insertOrderedList" title="Numeração">${ICO.ol}</button><button class="w-btn" data-c="insertUnorderedList" title="Marcas">${ICO.ul}</button></div>
+     <div class="rowb"><button class="w-btn" data-c="justifyLeft" title="Alinhar à esquerda">${ICO.al}</button><button class="w-btn" data-c="justifyCenter" title="Centrar">${ICO.ac}</button><button class="w-btn" data-c="justifyRight" title="Alinhar à direita">${ICO.ar}</button></div><small>Parágrafo</small></div>
+   </div>
+   <div class="w-body">
+    <div class="page">
+     <div class="zone" id="wTitle" contenteditable="true" spellcheck="true" lang="pt-PT" aria-label="Título">As minhas regras de ergonomia</div>
+     <div class="meta">Nome: ${esc(S.name)} | Turma: ${esc(S.turma)}</div>
+     <div class="zone vazio" id="wRules" contenteditable="true" spellcheck="true" lang="pt-PT" aria-label="As tuas regras" data-ph="Escreve aqui as tuas regras. Carrega em Enter para mudar de linha."></div>
+    </div>
+    <div class="side">
+     <div class="box"><h3>Tarefas</h3><ul class="tasks" id="wTasks"></ul></div>
+     <div class="box"><h3>Ideias</h3><p class="note" style="margin-top:0">Pensa no que aprendeste sobre:</p><div class="ideas"><span>👀 os olhos</span><span>🪑 as costas</span><span>🦶 os pés</span><span>✋ os pulsos</span><span>💪 os cotovelos</span><span>📏 a distância</span><span>⏰ as pausas</span><span>🪟 a luz</span></div></div>
+     <button class="btn big" id="wDone" disabled>Terminar o documento</button>
+    </div>
+   </div>
+  </div></div>`,'m5');
+  if(S.doc){$('wTitle').innerHTML=clean(S.doc.title)||'As minhas regras de ergonomia';$('wRules').innerHTML=clean(S.doc.rules);}
+  const T=$('wTitle'),R=$('wRules');
+  T.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();R.focus();}});
+  [T,R].forEach(z=>{z.addEventListener('input',afterEdit);z.addEventListener('paste',e=>{e.preventDefault();const tx=(e.clipboardData||window.clipboardData).getData('text/plain');document.execCommand('insertText',false,z===T?tx.replace(/\s+/g,' '):tx);});
+    z.addEventListener('keydown',e=>{if((e.ctrlKey||e.metaKey)&&/^[biu]$/i.test(e.key))setTimeout(afterEdit,0);});
+    z.addEventListener('drop',e=>e.preventDefault());});
+  const rib=$('rib');
+  rib.addEventListener('mousedown',e=>{if(e.target.closest('button'))e.preventDefault();});
+  rib.querySelectorAll('.w-btn').forEach(b=>b.onclick=()=>{const c=b.dataset.c;if(c==='undo'){restoreSel();document.execCommand('undo');afterEdit();return;}
+    if(['bold','italic','underline'].includes(c)&&!needSel())return;cmd(c);});
+  rib.querySelectorAll('[data-color]').forEach(b=>b.onclick=()=>{if(!needSel())return;cmd('foreColor',b.dataset.color);});
+  $('wFont').onchange=e=>{if(needSel())cmd('fontName',e.target.value);};
+  $('wSize').onchange=e=>{if(e.target.value)applySize(e.target.value);e.target.value='';};
+  main().querySelectorAll('.w-tabs button.off').forEach(b=>b.onclick=()=>toast('Hoje só usamos o separador Base.'));
+  $('wDone').onclick=()=>{const c=checkDoc();if(!c.tasks[0].ok)return;const extra=c.tasks.slice(1).filter(k=>k.ok).length;
+    const st=extra===5?3:extra>=3?2:1;setDone('m5',st,{nRegras:c.valid.length,tarefas:extra});
+    result('m5',st,extra===5?'O teu documento está perfeito!':`Cumpriste ${extra} de 5 tarefas de formatação. Podes voltar e melhorar.`);};
+  afterEdit();renderTasks();
+}
+document.addEventListener('selectionchange',()=>{const s=getSelection();if(s.rangeCount){const r=s.getRangeAt(0);if(zoneOf(r.commonAncestorContainer)&&zoneOf(r.startContainer)===zoneOf(r.endContainer)){savedRange=r.cloneRange();}}if(S.screen==='m5')ribbonState();});
+
+function xmlEsc(s){return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+function rgbHex(c){const m=c.match(/\d+/g);if(!m)return'000000';return m.slice(0,3).map(x=>(+x).toString(16).padStart(2,'0')).join('').toUpperCase();}
+function runsOf(nodes,root){const out=[];nodes.forEach(nd=>{const list=nd.nodeType===3?[nd]:textNodes(nd);list.forEach(t=>{const e=t.parentElement,cs=getComputedStyle(e);let u=false,x=e;while(x&&x!==root){if(x.tagName==='U'||/underline/.test(x.style.textDecoration||''))u=true;x=x.parentElement;}
+  const fam=cs.fontFamily.split(',')[0].replace(/["']/g,'').trim();
+  out.push(`<w:r><w:rPr><w:rFonts w:ascii="${xmlEsc(fam)}" w:hAnsi="${xmlEsc(fam)}"/>${(cs.fontWeight==='bold'||parseInt(cs.fontWeight,10)>=600)?'<w:b/>':''}${cs.fontStyle==='italic'?'<w:i/>':''}<w:color w:val="${rgbHex(cs.color)}"/><w:sz w:val="${Math.round(parseFloat(cs.fontSize)*1.5)}"/>${u?'<w:u w:val="single"/>':''}</w:rPr><w:t xml:space="preserve">${xmlEsc(t.nodeValue.replace(/\s+/g,' '))}</w:t></w:r>`);});});return out.join('');}
+function para(runs,align,prefix){const jc=align==='center'?'center':align==='right'?'right':'left';return `<w:p><w:pPr><w:spacing w:after="120"/><w:jc w:val="${jc}"/></w:pPr>${prefix?`<w:r><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial"/><w:sz w:val="24"/></w:rPr><w:t xml:space="preserve">${xmlEsc(prefix)}</w:t></w:r>`:''}${runs}</w:p>`;}
+async function makeDocx(){
+  const d=docBlocks(S.doc);const T=d.querySelector('#xT'),R=d.querySelector('#xR');
+  const alignOf=n=>{let e=n.nodeType===3?n.parentElement:n;while(e&&e!==d&&getComputedStyle(e).display==='inline')e=e.parentElement;return getComputedStyle(e||T).textAlign;};
+  const tn=textNodes(T);let body=para(runsOf([T],T),tn.length?alignOf(tn[0]):'left','');
+  body+=para(`<w:r><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial"/><w:color w:val="555555"/><w:sz w:val="22"/></w:rPr><w:t xml:space="preserve">${xmlEsc('Nome: '+S.name+' | Turma: '+S.turma)}</w:t></w:r>`,'left','');
+  blocks(R).forEach(b=>{const first=textNodes(b.nodes[0].nodeType===3?b.nodes[0].parentNode:b.nodes[0])[0];body+=para(runsOf(b.nodes,R),first?alignOf(first):'left',b.prefix);});
+  d.remove();
+  const docXml=`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body>${body}<w:sectPr><w:pgSz w:w="11906" w:h="16838"/><w:pgMar w:top="1417" w:right="1701" w:bottom="1417" w:left="1701" w:header="708" w:footer="708" w:gutter="0"/></w:sectPr></w:body></w:document>`;
+  const z=new JSZip();
+  z.file('[Content_Types].xml','<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/></Types>');
+  z.file('_rels/.rels','<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/></Relationships>');
+  z.file('word/document.xml',docXml);
+  return z.generateAsync({type:'blob',mimeType:'application/vnd.openxmlformats-officedocument.wordprocessingml.document'});
+}
+// ═══════════ LIGAÇÃO À FIREBASE ═══════════
+let FB=null;
+const FBP=new Promise(res=>{window.__fbResolve=res;setTimeout(()=>res(null),12000);}).then(f=>{FB=f;return f;});
+function fnv(s){let h=0x811c9dc5;for(let i=0;i<s.length;i++){h^=s.charCodeAt(i);h=Math.imul(h,0x01000193)>>>0;}return h.toString(36).padStart(7,'0');}
+const docIdFor=(uid,key)=>uid+'_'+fnv(key)+fnv(key+'#');
+
+// Lê o documento do aluno numa página escondida para extrair as regras e o título
+function docBlocks(docObj){const d=document.createElement('div');d.style.cssText='position:absolute;left:-9999px;top:0;width:600px';d.className='page';
+  d.innerHTML=`<div class="zone" id="xT">${clean((docObj||{}).title||'')}</div><div class="zone" id="xR">${clean((docObj||{}).rules||'')}</div>`;document.body.appendChild(d);return d;}
+
+function payloadFrom(e){
+  const f=FB,ms=active();
+  const tmp=docBlocks(e.doc);const regras=blocks(tmp.querySelector('#xR')).map(b=>b.text.slice(0,300)).slice(0,30);const titulo=tmp.querySelector('#xT').textContent.trim().slice(0,200);tmp.remove();
+  const prog={};let est=0;ms.forEach(m=>{const p=(e.prog||{})[m.id];prog[m.id]=p&&p.done?(p.stars||0):null;est+=prog[m.id]||0;});
+  const entregue=ms.every(m=>e.prog&&e.prog[m.id]&&e.prog[m.id].done);
+  return {uid:f.uid,nome:e.name.slice(0,60),nomeNorm:norm(e.name).slice(0,60),turma:e.turma.slice(0,20),prog,estrelas:est,estrelasMax:ms.length*3,
+    regras,nRegras:(e.prog.m5||{}).nRegras||0,tarefas:(e.prog.m5||{}).tarefas||0,titulo,
+    tituloHtml:clean((e.doc||{}).title||'').slice(0,3000),regrasHtml:clean((e.doc||{}).rules||'').slice(0,20000),
+    entregue,estado:entregue?'entregue':'em_curso',validado:false,atualizado:f.serverTimestamp(),versao:1};
+}
+let syncState='idle',syncT=null;
+function queueSync(){clearTimeout(syncT);syncT=setTimeout(()=>syncNow(),2500);}
+async function syncNow(){
+  if(!S.key)return false;const f=await FBP;if(!f){syncState='offline';updSync();return false;}
+  const k='erg5:p:'+S.key,e=LSget(k);if(!e)return false;
+  const id=(e.meta&&e.meta.docId)||docIdFor(f.uid,S.key);
+  syncState='sending';updSync();
+  try{await f.setDoc(f.doc(f.db,'entregas',id),payloadFrom(e),{merge:true});
+    e.meta=Object.assign(e.meta||{},{docId:id,pending:false,synced:true});LSset(k,e);S.meta=e.meta;syncState='ok';updSync();return true;}
+  catch(err){console.warn('Envio falhou',err);syncState=err&&err.code==='permission-denied'?'locked':'offline';updSync();return false;}
+}
+function updSync(){const el=$('syncBox');if(!el)return;
+  el.innerHTML={sending:'<b>A enviar ao professor…</b>',ok:'✅ <b>Enviado ao professor.</b> Podes fechar o exercício.',
+    offline:'⚠️ <b>Sem ligação à internet.</b> O trabalho ficou guardado neste computador e é enviado automaticamente na próxima vez que abrires o exercício. <button class="btn small" id="sRetry">Tentar outra vez</button>',
+    locked:'🔒 <b>Este trabalho já foi validado pelo professor</b> e não pode ser alterado.',idle:''}[syncState]||'';
+  el.className='feedback '+(syncState==='ok'||syncState==='locked'?'ok':syncState==='offline'?'bad':'');
+  if($('sRetry'))$('sRetry').onclick=()=>syncNow();}
+
+// Ao abrir: envia o que ficou pendente e apaga deste computador os trabalhos já validados (ou eliminados) pelo professor
+async function sweep(){
+  const f=await FBP;if(!f)return;let removed=0;
+  const keys=[];try{for(let i=0;i<localStorage.length;i++){const k=localStorage.key(i);if(k&&k.startsWith('erg5:p:'))keys.push(k);}}catch(e){return;}
+  for(const k of keys){const e=LSget(k);if(!e||!e.name)continue;const key=k.slice(7);const id=(e.meta&&e.meta.docId)||docIdFor(f.uid,key);
+    try{const snap=await f.getDoc(f.doc(f.db,'entregas',id));
+      if(snap.exists()&&snap.data().validado){localStorage.removeItem(k);removed++;continue;}
+      if(!snap.exists()&&e.meta&&e.meta.synced&&!e.meta.pending){localStorage.removeItem(k);removed++;continue;}
+      if(e.meta&&e.meta.pending){await f.setDoc(f.doc(f.db,'entregas',id),payloadFrom(e),{merge:true});e.meta=Object.assign(e.meta,{docId:id,pending:false,synced:true});LSset(k,e);}
+    }catch(err){console.warn('Verificação falhou',k,err);}}
+  if(removed)console.info(removed+' trabalho(s) validado(s) removido(s) deste computador.');
+}
+// Configuração do professor (turmas, missões, regras mínimas)
+FBP.then(async f=>{if(!f)return;try{const s=await f.getDoc(f.doc(f.db,'config','geral'));if(s.exists()){const c=s.data();LSset('erg5:cfgCache',c);
+  CFG=Object.assign({},CFG_DEFAULT,c);CFG.ativos=Object.assign({},CFG_DEFAULT.ativos,c.ativos||{});if(S.screen==='home')renderHome();else if(S.screen==='map')renderMap();}}catch(e){}
+  sweep();});
+
+async function enterStudent(){
+  const f=await Promise.race([FBP,new Promise(r=>setTimeout(()=>r(FB),2500))]);
+  if(f){try{const id=(S.meta&&S.meta.docId)||docIdFor(f.uid,S.key);const snap=await f.getDoc(f.doc(f.db,'entregas',id));
+    if(snap.exists()){const d=snap.data();
+      if(d.validado){try{localStorage.removeItem('erg5:p:'+S.key);}catch(e){}renderValidated(d);return;}
+      if(d.estado==='devolvido'&&d.comentario)S.comentario=d.comentario;}}catch(e){}}
+  renderMap();
+}
+function renderValidated(d){
+  show(`<div class="wrap"><div class="card center" style="max-width:620px;margin:40px auto"><h1 style="font-size:40px">✅ Trabalho validado</h1>
+   <p style="font-weight:700;font-size:19px">${esc(S.name)}, o professor já validou o teu trabalho de ergonomia.</p>
+   <div class="bigstars">⭐ ${d.estrelas||0}/${d.estrelasMax||15}</div>${d.comentario?`<p class="tip" style="text-align:left">💬 ${esc(d.comentario)}</p>`:''}
+   <p class="note">Os teus dados foram apagados deste computador.</p><button class="btn" id="vBack">Voltar ao início</button></div></div>`,'validated');
+  $('vBack').onclick=()=>{S.name='';S.turma='';S.key='';renderHome();};
+}
+
+// ═══════════ ENTREGA ═══════════
+function renderDeliver(){
+  if(!allDone()){renderMap();return;}
+  const tmp=docBlocks(S.doc);const rules=blocks(tmp.querySelector('#xR'));tmp.remove();
+  show(topbar('Entrega')+`<div class="wrap"><div class="deliver">
+   <div class="ticket"><h3>As minhas regras de ergonomia</h3><p style="margin:4px 0 0"><b>${esc(S.name)}</b> | ${esc(S.turma)} | ${new Date().toLocaleDateString('pt-PT')}</p><p style="margin:2px 0">⭐ ${totalStars()} de ${active().length*3} estrelas</p>
+    <ol class="rules">${rules.map(b=>`<li>${esc(b.text)}</li>`).join('')}</ol></div>
+   <div class="card"><h3 style="font-size:24px;margin-bottom:10px">Entrega ao professor</h3><div id="syncBox"></div>
+    <p class="note" style="margin-top:12px">Ainda podes voltar às missões e melhorar o teu trabalho até o professor o validar. As alterações são enviadas sozinhas.</p>
+    <div class="mbtns" style="justify-content:flex-start">${window.JSZip?'<button class="btn sun" id="dDocx">⬇️ Descarregar o meu documento Word</button>':''}</div></div>
+  </div></div>`,'deliver');
+  syncState='sending';updSync();syncNow();
+  if($('dDocx'))$('dDocx').onclick=async()=>{try{const blob=await makeDocx();const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='Ergonomia - '+S.name+'.docx';document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove();},2000);}catch(e){toast('Não foi possível criar o documento.');}};
+}
+
+// ═══════════ ARRANQUE ═══════════
+$('modal').addEventListener('click',e=>{if(e.target===$('modal'))$('modal').classList.remove('on');});
+document.addEventListener('keydown',e=>{if(e.key==='Escape')$('modal').classList.remove('on');});
+renderHome();
+
+</script>
+<script type="module">
+import { firebaseConfig } from './firebase-config.js';
+const V='10.12.2';
+try{
+  if(!firebaseConfig.apiKey||firebaseConfig.apiKey.startsWith('COLE'))throw new Error('Falta configurar firebase-config.js');
+  const {initializeApp}=await import(`https://www.gstatic.com/firebasejs/${V}/firebase-app.js`);
+  const {getAuth,signInAnonymously,onAuthStateChanged}=await import(`https://www.gstatic.com/firebasejs/${V}/firebase-auth.js`);
+  const {getFirestore,doc,getDoc,setDoc,serverTimestamp}=await import(`https://www.gstatic.com/firebasejs/${V}/firebase-firestore.js`);
+  const app=initializeApp(firebaseConfig);const auth=getAuth(app);const db=getFirestore(app);
+  const user=await new Promise((res,rej)=>{const off=onAuthStateChanged(auth,u=>{if(u){off();res(u);}});signInAnonymously(auth).catch(rej);});
+  window.__fbResolve({db,doc,getDoc,setDoc,serverTimestamp,uid:user.uid});
+}catch(e){console.warn('Firebase indisponível:',e);window.__fbResolve(null);}
+</script>
+</body></html>
